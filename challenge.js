@@ -3,7 +3,7 @@
  */
 "use strict";
 var __factories = [];
-
+const MAX_PROD = 3;
 
 class Factory{
 
@@ -167,6 +167,34 @@ class Factory{
         return needs;
     }
 
+    getActions(){
+        var $this = this,
+            maxTroops = this.troopsAllStepSafe(),
+            needs = [];
+
+        if(maxTroops > 0) {
+            this.links.slice().sort(Utils.prodSorter).forEach(l => {
+                var f = l.getLinked($this),
+                    s = f.getLastStep();
+                if (!Utils.isMe(s) && maxTroops > s.cybs) {
+                    needs.push(new MoveAction(this, f, s.cybs + 1, l.dist));
+                    maxTroops -= s.cybs + 1;
+                }
+            });
+            if(maxTroops > 10 && this.prod < MAX_PROD){
+                needs.push(new IncAction(this));
+                needs.push(new MsgAction("INC ACTION : " + this.id));
+                maxTroops -= 10;
+            }
+
+            // if( this.prod == MAX_PROD && maxTroops > 0){
+            //     this.links.
+            // }
+        }
+
+        return needs;
+    }
+
 
     static getFactory(id,link=null){
         var fact = __factories.find(f=>f.id==id);
@@ -189,8 +217,6 @@ class Factory{
         return __factories.filter(Utils.isMe);
     }
 }
-
-
 
 class Link{
     constructor(factId1, factId2, dist){
@@ -235,6 +261,64 @@ class Troop{
 class Bomb{
     constructor(prop,sourceId,targetId,dist){
 
+    }
+}
+
+class Action{
+    constructor(a,b,c){
+        this.type = null;
+        this.a = a;
+        this.b = b;
+        this.c = c;
+    }
+    toString(){
+        var result =  [this.type];
+        if(this.a) {
+            result.push(this.a instanceof Factory ? this.a.id : this.a);
+        }
+        if(this.b) {
+            result.push(this.b instanceof Factory ? this.b.id : this.b);
+        }
+        if(this.c)
+            result.push(this.c);
+        return result.join(' ');
+    }
+}
+class MoveAction extends Action{
+    constructor(source, target, cybs,dist){
+        super(source,target,cybs);
+        this.type = "MOVE";
+        new Troop('1',source,target,cybs,dist);
+        target.invalidStepAndRecalc(dist);
+        source.cybs -= cybs;
+        source.invalidStepAndRecalc(1);
+    }
+}
+class BombAction extends Action{
+    constructor(source, target){
+        super(source,target);
+        this.type = "BOMB";
+    }
+}
+class IncAction extends Action{
+    constructor(source){
+        super(source);
+        this.type = "INC";
+        source.cybs -= 10;
+        source.prod++;
+        source.invalidStepAndRecalc(1);
+    }
+}
+class MsgAction extends Action{
+    constructor(message){
+        super(message);
+        this.type = "MSG";
+    }
+}
+class WaitAction extends Action{
+    constructor(){
+        super();
+        this.type = "WAIT";
     }
 }
 
@@ -286,7 +370,7 @@ class GameEngine{
         if(this.actions.length > 0){
             print(this.actions.join(';'));
         }else{
-            print('WAIT');
+            print(new WaitAction());
         }
     }
 
@@ -306,113 +390,31 @@ class GameEngine{
                 f => Utils.isMe(f) && Utils.isMe(f.getLastStep())
             ).forEach(
                 f => {
-                    var safeTroops = f.troopsAllStepSafe();
-                    if(safeTroops > 0){
-                        //there is some usable troops
-                        f.getFactoriesNeedRenforcement(safeTroops)
-                            .forEach(m =>
-                                $this.addMove(f,m.target,m.cybs,m.dist)
-                            )
-
-                    }
+                    $this.actions =$this.actions.concat(f.getActions());
                 }
             )
         ;
 
         this.writeActions();
     }
-    addMove(source,target,cybs,dist){
-        this.actions.push(["MOVE",source.id, target.id,cybs].join(' '));
-        source.cybs -= cybs;
-        //TODO : recalc source and target steps ;)
-        new Troop('1',source,target,cybs,dist);
-        target.invalidStepAndRecalc(dist);
-    }
-    addBomb(source, target){
-        this.actions.push(["BOMB",source.id, target.id].join(' '));
-    }
+    // addMove(source,target,cybs,dist){
+    //     this.actions.push(["MOVE",source.id, target.id,cybs].join(' '));
+    //     source.cybs -= cybs;
+    //     //TODO : recalc source and target steps ;)
+    //     new Troop('1',source,target,cybs,dist);
+    //     target.invalidStepAndRecalc(dist);
+    // }
+    // addBomb(source, target){
+    //     this.actions.push(["BOMB",source.id, target.id].join(' '));
+    // }
 
     PlayAll(){
         while(true){
             this.PlayStep();
         }
     }
-
-
-
 }
 
 var gameEngine = new GameEngine();
 gameEngine.readInit();
 gameEngine.PlayAll();
-
-/**
- * Auto-generated code below aims at helping you parse
- * the standard input according to the problem statement.
- **/
-//
-// var factoryCount = parseInt(readline()); // the number of factories
-// var linkCount = parseInt(readline()); // the number of links between factories
-// for (var i = 0; i < linkCount; i++) {
-//     var inputs = readline().split(' ');
-//     var factory1 = parseInt(inputs[0]);
-//     var factory2 = parseInt(inputs[1]);
-//     var distance = parseInt(inputs[2]);
-//     new Link(factory1,factory2,distance);
-// }
-// var bombCount = 2;
-// // game loop
-// while (true) {
-//     var entityCount = parseInt(readline()); // the number of entities (e.g. factories and troops)
-//     var bombs = [];
-//     for (var i = 0; i < entityCount; i++) {
-//         var inputs = readline().split(' ');
-//         var entityId = parseInt(inputs[0]);
-//         var entityType = inputs[1];
-//         var arg1 = parseInt(inputs[2]);
-//         var arg2 = parseInt(inputs[3]);
-//         var arg3 = parseInt(inputs[4]);
-//         var arg4 = parseInt(inputs[5]);
-//         var arg5 = parseInt(inputs[6]);
-//         switch(entityType){
-//             case "FACTORY" :
-//                 Factory.getFactory(entityId).setInfos(arg1,arg2,arg3);
-//                 break;
-//             case "TROOP":
-//                 new Troop(arg1, Factory.getFactory(arg2),Factory.getFactory(arg3),arg4,arg5);
-//                 break;
-//         }
-//     }
-//
-//     var actions = [];
-//     var move = (source,target,cybs)=> {
-//         actions.push(["MOVE",source.id, target.id,cybs].join(' '));
-//         source.cybs -= cybs;
-//     }
-//     var bomb = (source, target) => {
-//         actions.push(["BOMB",source.id, target.id].join(' '));
-//     }
-//
-//     var myFacts = Factory.myFactories();
-//     myFacts.sort(Utils.cybsSorter);
-//
-//     myFacts.forEach(fact => {
-//         if(fact.cybs > 0){
-//         var links = fact.getLinkedEnemy();
-//         if(links.length){
-//             links.forEach(link=>{
-//                 var target = link.getLinked(fact);
-//             //TODO Check if allready targeted !!!
-//             if(target.cybs < fact.cybs)
-//                 move(fact,target,target.cybs + 1);
-//
-//         });
-//         }
-//     }
-// });
-//     // Write an action using print()
-//     // To debug: printErr('Debug messages...');
-//     // Any valid action, such as "WAIT" or "MOVE source destination cyborgs"
-//
-//     print(('WAIT;' + actions.join(';')).replace(/;$/,''));
-// }
